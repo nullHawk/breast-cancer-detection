@@ -1,13 +1,14 @@
-# preprocess_data.py
 import pandas as pd
+import torch
+from torch.utils.data import DataLoader, TensorDataset
 
 def load_data():
     # Load the datasets
-    df_mega_train = pd.read_csv('/path/to/mass_case_description_train_set.csv')
-    df_mega_test = pd.read_csv('/path/to/mass_case_description_test_set.csv')
+    df_train = pd.read_csv('/path/to/mass_case_description_train_set.csv')
+    df_test = pd.read_csv('/path/to/mass_case_description_test_set.csv')
     df_dicom = pd.read_csv('/path/to/dicom_info.csv')
 
-    return df_mega_train, df_mega_test, df_dicom
+    return df_train, df_test, df_dicom
 
 def preprocess_image_paths(df_dicom):
     imdir = '/data/archive/jpeg'
@@ -15,7 +16,6 @@ def preprocess_image_paths(df_dicom):
     # Fix image paths
     cropped_images = df_dicom[df_dicom.SeriesDescription == 'cropped images'].image_path.replace('CBIS-DDSM/jpeg', imdir, regex=True)
     full_mammo = df_dicom[df_dicom.SeriesDescription == 'full mammogram images'].image_path.replace('CBIS-DDSM/jpeg', imdir, regex=True)
-    roi_img = df_dicom[df_dicom.SeriesDescription == 'ROI mask images'].image_path.replace('CBIS-DDSM/jpeg', imdir, regex=True)
 
     # Organize image paths into dictionaries
     full_mammo_dict = {dicom.split("/")[4]: dicom for dicom in full_mammo}
@@ -31,21 +31,44 @@ def fix_image_path(df, full_mammo_dict, cropped_images_dict):
         df.at[index, 'image_file_path'] = full_mammo_dict[img_name_full]
         df.at[index, 'cropped_image_file_path'] = cropped_images_dict[img_name_cropped]
 
-def preprocess_data(df_mega_train, df_mega_test, full_mammo_dict, cropped_images_dict):
-    # Rename columns
-    df_mega_train = df_mega_train.rename(columns={'left or right breast': 'left_or_right_breast', 'image view': 'image_view', 'abnormality id': 'abnormality_id', 'abnormality type': 'abnormality_type', 'mass shape': 'mass_shape', 'mass margins': 'mass_margins', 'image file path': 'image_file_path', 'cropped image file path': 'cropped_image_file_path', 'ROI mask file path': 'ROI_mask_file_path'})
-
+def preprocess_data(df_train, df_test, full_mammo_dict, cropped_images_dict):
     # Fix image paths
-    fix_image_path(df_mega_train, full_mammo_dict, cropped_images_dict)
-    fix_image_path(df_mega_test, full_mammo_dict, cropped_images_dict)
+    fix_image_path(df_train, full_mammo_dict, cropped_images_dict)
+    fix_image_path(df_test, full_mammo_dict, cropped_images_dict)
 
-    # Fill missing values
-    df_mega_train['mass_shape'] = df_mega_train['mass_shape'].fillna(method='bfill')
-    df_mega_train['mass_margins'] = df_mega_train['mass_margins'].fillna(method='bfill')
+    # Return preprocessed DataFrames
+    return df_train, df_test
 
-    return df_mega_train, df_mega_test
+def prepare_dataloader(df, batch_size=32):
+    """
+    Convert the dataframe into a PyTorch DataLoader.
+    
+    Args:
+        df (pd.DataFrame): The dataframe with features and labels.
+        batch_size (int): Batch size for DataLoader.
+    
+    Returns:
+        DataLoader: DataLoader for the input dataframe.
+    """
+    # Assuming you have your image tensors and labels ready for PyTorch
+    # Here you would load images based on df['image_file_path'] and normalize them.
+    # For demonstration, we'll use random tensors.
+
+    # Create random feature tensors (replace this with actual image loading)
+    X = torch.randn(len(df), 3, 224, 224)  # Example: 3-channel images (RGB), size 224x224
+    y = torch.tensor(df['pathology'].values, dtype=torch.long)
+
+    dataset = TensorDataset(X, y)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return dataloader
 
 def load_and_preprocess_data():
-    df_mega_train, df_mega_test, df_dicom = load_data()
+    df_train, df_test, df_dicom = load_data()
     full_mammo_dict, cropped_images_dict = preprocess_image_paths(df_dicom)
-    return preprocess_data(df_mega_train, df_mega_test, full_mammo_dict, cropped_images_dict)
+    df_train, df_test = preprocess_data(df_train, df_test, full_mammo_dict, cropped_images_dict)
+
+    # Create DataLoaders
+    train_loader = prepare_dataloader(df_train)
+    test_loader = prepare_dataloader(df_test)
+
+    return train_loader, test_loader

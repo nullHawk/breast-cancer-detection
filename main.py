@@ -1,12 +1,20 @@
-from preprocess_dataset import preprocess_data, get_dataloader
-from train_eval import k_fold_cross_validation
+from preprocess_dataset import load_and_preprocess_data
+from train_eval import train_model, evaluate_model
+from model import get_pretrained_resnet, get_device
 
-# Define paths for input/output directories
-input_dir = '/data/archive/jpeg'
-output_dir = 'path_to_save_pngs'
-data_dir = output_dir
+def main():
+    # Load and preprocess the data
+    train_loader, test_loader = load_and_preprocess_data()
 
+    # Initialize the ResNet model
+    device = get_device()
+    model = get_pretrained_resnet(num_classes=2)
 
-preprocess_data(input_dir, output_dir)
-train_loader, val_loader = get_dataloader(data_dir, batch_size=32)
-k_fold_cross_validation(train_loader.dataset, k=5)
+    # Train the model
+    train_model(model, train_loader, device, num_epochs=10)
+
+    # Evaluate the model
+    evaluate_model(model, test_loader, device)
+
+if __name__ == '__main__':
+    main()
